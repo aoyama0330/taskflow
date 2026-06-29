@@ -9,11 +9,13 @@ import { loadApiKey, saveApiKey } from './lib/storage';
 import { fetchTasks, insertTask, updateTask, deleteTask } from './lib/db';
 import { supabase } from './lib/supabase';
 import type { Task } from './types/task';
-import type { User } from '@supabase/supabase-js';
 import './index.css';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AuthUser = any;
+
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
@@ -22,11 +24,13 @@ export default function App() {
 
   // Auth state listener
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase.auth.getSession().then(({ data: { session } }: any) => {
       setUser(session?.user ?? null);
       setAuthLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       setUser(session?.user ?? null);
     });
     return () => subscription.unsubscribe();
