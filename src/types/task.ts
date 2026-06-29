@@ -12,6 +12,7 @@ export interface Task {
   urgency: number;
   importance: number;
   deadline: string | null;
+  scheduledDate: string | null;
   delegateTo: string | null;
   completed: boolean;
   completedAt: string | null;

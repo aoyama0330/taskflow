@@ -47,6 +47,7 @@ export const extractTasks = async (text: string, apiKey: string): Promise<Task[]
     ...t,
     id: crypto.randomUUID(),
     actualMinutes: null,
+    scheduledDate: null,
     completedAt: null,
     completed: false,
     createdAt: new Date().toISOString(),

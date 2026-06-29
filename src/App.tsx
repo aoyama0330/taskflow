@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Settings, LogOut, Loader2 } from 'lucide-react';
+import { Settings, LogOut, Loader2, LayoutDashboard, CalendarDays } from 'lucide-react';
 import Auth from './components/Auth';
 import TaskInput from './components/TaskInput';
 import TaskList from './components/TaskList';
 import BubbleChart from './components/BubbleChart';
 import MentorPanel from './components/MentorPanel';
+import CalendarView from './components/CalendarView';
 import { loadApiKey, saveApiKey } from './lib/storage';
 import { fetchTasks, insertTask, updateTask, deleteTask } from './lib/db';
 import { supabase } from './lib/supabase';
@@ -14,6 +15,8 @@ import './index.css';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AuthUser = any;
 
+type AppView = 'dashboard' | 'calendar';
+
 export default function App() {
   const [user, setUser] = useState<AuthUser>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -21,8 +24,8 @@ export default function App() {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [apiKey, setApiKey] = useState(() => loadApiKey());
   const [showKeyInput, setShowKeyInput] = useState(false);
+  const [view, setView] = useState<AppView>('dashboard');
 
-  // Auth state listener
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     supabase.auth.getSession().then(({ data: { session } }: any) => {
@@ -36,7 +39,6 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load tasks when user logs in
   useEffect(() => {
     if (!user) { setTasks([]); return; }
     setTasksLoading(true);
@@ -64,6 +66,11 @@ export default function App() {
     await updateTask(updated);
   };
 
+  const handleUpdate = async (updated: Task) => {
+    setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
+    await updateTask(updated);
+  };
+
   const handleDelete = async (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
     await deleteTask(id);
@@ -88,6 +95,22 @@ export default function App() {
           <span className="logo">⬡ Taskflow</span>
           <span className="tagline">タスクを立体的に把握する</span>
         </div>
+
+        <nav className="app-nav">
+          <button
+            className={`nav-tab ${view === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setView('dashboard')}
+          >
+            <LayoutDashboard size={14} /> ダッシュボード
+          </button>
+          <button
+            className={`nav-tab ${view === 'calendar' ? 'active' : ''}`}
+            onClick={() => setView('calendar')}
+          >
+            <CalendarDays size={14} /> カレンダー
+          </button>
+        </nav>
+
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="icon-btn" onClick={() => setShowKeyInput(v => !v)} title="Claude API設定">
             <Settings size={15} />
@@ -109,19 +132,31 @@ export default function App() {
         </div>
       )}
 
-      <main className="app-body">
-        <div className="left-col">
-          <TaskInput apiKey={apiKey} onTasksAdded={handleTasksAdded} />
-          {tasksLoading
-            ? <div className="empty-state"><Loader2 size={20} className="spin" /></div>
-            : <TaskList tasks={tasks} onToggle={handleToggle} onDelete={handleDelete} />
-          }
-        </div>
-        <div className="right-col">
-          <BubbleChart tasks={tasks} />
-          <MentorPanel tasks={tasks} apiKey={apiKey} />
-        </div>
-      </main>
+      {view === 'dashboard' ? (
+        <main className="app-body">
+          <div className="left-col">
+            <TaskInput apiKey={apiKey} onTasksAdded={handleTasksAdded} />
+            {tasksLoading
+              ? <div className="empty-state"><Loader2 size={20} className="spin" /></div>
+              : <TaskList tasks={tasks} onToggle={handleToggle} onDelete={handleDelete} />
+            }
+          </div>
+          <div className="right-col">
+            <BubbleChart tasks={tasks} />
+            <MentorPanel tasks={tasks} apiKey={apiKey} />
+          </div>
+        </main>
+      ) : (
+        <main className="calendar-body">
+          <div className="calendar-main-col">
+            <CalendarView tasks={tasks} onUpdate={handleUpdate} />
+          </div>
+          <div className="calendar-side-col">
+            <TaskInput apiKey={apiKey} onTasksAdded={handleTasksAdded} />
+            <MentorPanel tasks={tasks} apiKey={apiKey} />
+          </div>
+        </main>
+      )}
     </div>
   );
 }

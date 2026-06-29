@@ -44,6 +44,7 @@ export default function TaskInput({ apiKey, onTasksAdded }: Props) {
       urgency: 5,
       importance: 5,
       deadline: null,
+      scheduledDate: null,
       delegateTo: null,
       actualMinutes: null,
       completedAt: null,
