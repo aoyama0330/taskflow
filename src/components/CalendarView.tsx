@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, List, Clock, AlertCircle, Wand2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronLeft, ChevronRight, CalendarDays, List, Clock, AlertCircle, Wand2, GripVertical } from 'lucide-react';
 import type { Task } from '../types/task';
 import { CATEGORY_META } from '../types/task';
 import { autoSchedule } from '../lib/scheduler';
@@ -29,22 +30,133 @@ const addDays = (d: Date, n: number): Date => {
 };
 
 const DAY_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
-
 const taskDisplayDate = (t: Task) => t.scheduledDate || t.deadline;
 
-// ── Sub-components ────────────────────────────────────────────
-function TaskChip({ task, onUpdate, showDate = false }: { task: Task; onUpdate: (t: Task) => void; showDate?: boolean }) {
-  const meta = CATEGORY_META[task.category];
-  const [editing, setEditing] = useState(false);
+const sortByOrder = (arr: Task[], orderedIds: string[]): Task[] =>
+  [...arr].sort((a, b) => {
+    const ai = orderedIds.indexOf(a.id);
+    const bi = orderedIds.indexOf(b.id);
+    if (ai === -1 && bi === -1) return b.urgency - a.urgency;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
 
-  const handleDateChange = (val: string) => {
-    onUpdate({ ...task, scheduledDate: val || null });
-    setEditing(false);
+// ── Mini Calendar (portal, position: fixed) ───────────────────
+function MiniCalendar({ anchor, value, onChange, onClose }: {
+  anchor: { top: number; right: number };
+  value: string | null;
+  onChange: (date: string) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const todayDate = new Date(); todayDate.setHours(0, 0, 0, 0);
+  const todayStr = toDateStr(todayDate);
+
+  const [viewMonth, setViewMonth] = useState(() => {
+    const base = value ? new Date(value + 'T00:00:00') : todayDate;
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  });
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  const year = viewMonth.getFullYear();
+  const mon = viewMonth.getMonth();
+  const daysInMonth = new Date(year, mon + 1, 0).getDate();
+  const firstDow = (new Date(year, mon, 1).getDay() + 6) % 7; // Mon=0
+
+  const ds = (d: number) =>
+    `${year}-${String(mon + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+  const cells: (number | null)[] = [
+    ...Array(firstDow).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+
+  return createPortal(
+    <div
+      ref={ref}
+      className="mini-cal-popup"
+      style={{ position: 'fixed', top: anchor.top, right: anchor.right }}
+      onMouseDown={e => e.stopPropagation()}
+    >
+      <div className="mini-cal-quick">
+        <button className="mini-cal-quick-btn" onMouseDown={e => { e.stopPropagation(); onChange(todayStr); }}>今日</button>
+        <button className="mini-cal-quick-btn" onMouseDown={e => { e.stopPropagation(); onChange(toDateStr(addDays(todayDate, 1))); }}>明日</button>
+        <button className="mini-cal-quick-btn" onMouseDown={e => { e.stopPropagation(); onChange(toDateStr(addDays(todayDate, 2))); }}>明後日</button>
+      </div>
+      <div className="mini-cal-nav">
+        <button className="mini-cal-nav-btn" onMouseDown={e => { e.stopPropagation(); setViewMonth(new Date(year, mon - 1, 1)); }}>
+          <ChevronLeft size={13} />
+        </button>
+        <span className="mini-cal-month">{year}年{mon + 1}月</span>
+        <button className="mini-cal-nav-btn" onMouseDown={e => { e.stopPropagation(); setViewMonth(new Date(year, mon + 1, 1)); }}>
+          <ChevronRight size={13} />
+        </button>
+      </div>
+      <div className="mini-cal-grid">
+        {['月', '火', '水', '木', '金', '土', '日'].map(d => (
+          <div key={d} className="mini-cal-dow">{d}</div>
+        ))}
+        {cells.map((day, i) => day === null
+          ? <div key={`e${i}`} />
+          : <button
+              key={ds(day)}
+              className={`mini-cal-day${ds(day) === todayStr ? ' is-today' : ''}${ds(day) === value ? ' is-selected' : ''}`}
+              onMouseDown={e => { e.stopPropagation(); onChange(ds(day)); }}
+            >{day}</button>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ── Task Chip ─────────────────────────────────────────────────
+interface ChipProps {
+  task: Task;
+  onUpdate: (t: Task) => void;
+  showDate?: boolean;
+  isDraggable?: boolean;
+  isDragOver?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragEnd?: () => void;
+  onDrop?: (e: React.DragEvent) => void;
+}
+
+function TaskChip({ task, onUpdate, showDate = false, isDraggable = false, isDragOver = false,
+  onDragStart, onDragOver, onDragEnd, onDrop }: ChipProps) {
+  const meta = CATEGORY_META[task.category];
+  const [calAnchor, setCalAnchor] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const toggleCal = () => {
+    if (calAnchor) { setCalAnchor(null); return; }
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setCalAnchor({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    }
   };
 
   return (
-    <div className="cal-task-chip" style={{ borderLeftColor: meta.color }}>
+    <div
+      className={`cal-task-chip${isDragOver ? ' drag-over' : ''}`}
+      style={{ borderLeftColor: meta.color }}
+      draggable={isDraggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
+      onDrop={onDrop}
+    >
       <div className="cal-chip-top">
+        {isDraggable && <GripVertical size={11} className="drag-handle" />}
         <span className="cal-chip-icon">{meta.icon}</span>
         <span className="cal-chip-title">{task.title}</span>
       </div>
@@ -53,44 +165,74 @@ function TaskChip({ task, onUpdate, showDate = false }: { task: Task; onUpdate: 
         {showDate && taskDisplayDate(task) && (
           <span className="cal-chip-date">{taskDisplayDate(task)}</span>
         )}
-        {editing ? (
-          <input
-            type="date"
-            className="cal-date-input"
-            defaultValue={task.scheduledDate || ''}
-            autoFocus
-            onChange={e => handleDateChange(e.target.value)}
-            onBlur={() => setEditing(false)}
+        <button ref={btnRef} className="cal-schedule-btn" onClick={toggleCal} title="日付を変更">📅</button>
+        {calAnchor && (
+          <MiniCalendar
+            anchor={calAnchor}
+            value={task.scheduledDate}
+            onChange={val => { onUpdate({ ...task, scheduledDate: val }); setCalAnchor(null); }}
+            onClose={() => setCalAnchor(null)}
           />
-        ) : (
-          <button className="cal-schedule-btn" onClick={() => setEditing(true)} title="日付を変更">
-            📅
-          </button>
         )}
       </div>
     </div>
   );
 }
 
-// ── Today view ────────────────────────────────────────────────
-function TodayView({ tasks, onUpdate }: Props) {
+// ── Today View ────────────────────────────────────────────────
+function TodayView({ tasks, onUpdate, orderedIds, setOrderedIds }: Props & {
+  orderedIds: string[];
+  setOrderedIds: (ids: string[]) => void;
+}) {
   const todayStr = today();
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
-  const overdue = tasks.filter(t =>
-    !t.completed && taskDisplayDate(t) && taskDisplayDate(t)! < todayStr
-  ).sort((a, b) => (taskDisplayDate(a) || '').localeCompare(taskDisplayDate(b) || ''));
-
-  const todayTasks = tasks.filter(t =>
-    !t.completed && taskDisplayDate(t) === todayStr
-  ).sort((a, b) => b.urgency - a.urgency);
-
-  const unscheduled = tasks.filter(t =>
-    !t.completed && !taskDisplayDate(t) && t.urgency >= 7
-  ).sort((a, b) => (b.urgency + b.importance) - (a.urgency + a.importance));
-
+  const overdue = sortByOrder(
+    tasks.filter(t => !t.completed && taskDisplayDate(t) && taskDisplayDate(t)! < todayStr),
+    orderedIds
+  );
+  const todayTasks = sortByOrder(
+    tasks.filter(t => !t.completed && taskDisplayDate(t) === todayStr),
+    orderedIds
+  );
+  const unscheduled = sortByOrder(
+    tasks.filter(t => !t.completed && !taskDisplayDate(t) && t.urgency >= 7),
+    orderedIds
+  ).slice(0, 5);
   const completed = tasks.filter(t =>
     t.completed && t.completedAt && t.completedAt.startsWith(todayStr)
   );
+
+  const reorder = (sourceId: string, targetId: string) => {
+    const allActive = tasks.filter(t => !t.completed).map(t => t.id);
+    const current = [
+      ...orderedIds.filter(id => allActive.includes(id)),
+      ...allActive.filter(id => !orderedIds.includes(id)),
+    ];
+    const from = current.indexOf(sourceId);
+    const to = current.indexOf(targetId);
+    if (from === -1 || to === -1) return;
+    const next = [...current];
+    next.splice(from, 1);
+    next.splice(to, 0, sourceId);
+    setOrderedIds(next);
+  };
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    e.dataTransfer.setData('taskId', id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    setDragOverId(id);
+  };
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData('taskId');
+    if (sourceId && sourceId !== targetId) reorder(sourceId, targetId);
+    setDragOverId(null);
+  };
+  const handleDragEnd = () => setDragOverId(null);
 
   return (
     <div className="today-view">
@@ -108,7 +250,17 @@ function TodayView({ tasks, onUpdate }: Props) {
           今日の予定
           {todayTasks.length === 0 && <span className="cal-empty-hint">スケジュールされたタスクなし</span>}
         </div>
-        {todayTasks.map(t => <TaskChip key={t.id} task={t} onUpdate={onUpdate} />)}
+        {todayTasks.map(t => (
+          <TaskChip
+            key={t.id} task={t} onUpdate={onUpdate}
+            isDraggable
+            isDragOver={dragOverId === t.id}
+            onDragStart={e => handleDragStart(e, t.id)}
+            onDragOver={e => handleDragOver(e, t.id)}
+            onDrop={e => handleDrop(e, t.id)}
+            onDragEnd={handleDragEnd}
+          />
+        ))}
       </section>
 
       {unscheduled.length > 0 && (
@@ -116,7 +268,7 @@ function TodayView({ tasks, onUpdate }: Props) {
           <div className="cal-section-header urgent-hint">
             ⚡ 今日やるべき未スケジュール（緊急度 7+）
           </div>
-          {unscheduled.slice(0, 5).map(t => <TaskChip key={t.id} task={t} onUpdate={onUpdate} />)}
+          {unscheduled.map(t => <TaskChip key={t.id} task={t} onUpdate={onUpdate} />)}
         </section>
       )}
 
@@ -137,10 +289,18 @@ function TodayView({ tasks, onUpdate }: Props) {
   );
 }
 
-// ── Week view ─────────────────────────────────────────────────
-function WeekView({ tasks, onUpdate, onBulkUpdate }: Props) {
+// ── Week View ─────────────────────────────────────────────────
+function WeekView({ tasks, onUpdate, onBulkUpdate, orderedIds }: Props & {
+  orderedIds: string[];
+}) {
   const [offset, setOffset] = useState(0);
   const [scheduling, setScheduling] = useState(false);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const monday = getMonday(offset);
+  const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+  const todayStr = today();
+
+  const rangeLabel = `${monday.getMonth() + 1}/${monday.getDate()} 〜 ${addDays(monday, 6).getMonth() + 1}/${addDays(monday, 6).getDate()}`;
 
   const handleAutoSchedule = async () => {
     if (!onBulkUpdate) return;
@@ -150,25 +310,31 @@ function WeekView({ tasks, onUpdate, onBulkUpdate }: Props) {
     await onBulkUpdate(updated);
     setScheduling(false);
   };
-  const monday = getMonday(offset);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
-  const todayStr = today();
 
-  const rangeLabel = `${monday.getMonth() + 1}/${monday.getDate()} 〜 ${addDays(monday, 6).getMonth() + 1}/${addDays(monday, 6).getDate()}`;
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    e.dataTransfer.setData('taskId', taskId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  const handleDragOverCol = (e: React.DragEvent, dateStr: string) => {
+    e.preventDefault();
+    setDragOverDate(dateStr);
+  };
+  const handleDropOnCol = (e: React.DragEvent, dateStr: string) => {
+    const taskId = e.dataTransfer.getData('taskId');
+    const task = tasks.find(t => t.id === taskId);
+    if (task && taskDisplayDate(task) !== dateStr) {
+      onUpdate({ ...task, scheduledDate: dateStr });
+    }
+    setDragOverDate(null);
+  };
 
   return (
     <div className="week-view">
       <div className="week-nav">
-        <button className="week-nav-btn" onClick={() => setOffset(o => o - 1)}>
-          <ChevronLeft size={16} />
-        </button>
+        <button className="week-nav-btn" onClick={() => setOffset(o => o - 1)}><ChevronLeft size={16} /></button>
         <span className="week-range">{rangeLabel}</span>
-        <button className="week-nav-btn" onClick={() => setOffset(o => o + 1)}>
-          <ChevronRight size={16} />
-        </button>
-        {offset !== 0 && (
-          <button className="week-today-btn" onClick={() => setOffset(0)}>今週</button>
-        )}
+        <button className="week-nav-btn" onClick={() => setOffset(o => o + 1)}><ChevronRight size={16} /></button>
+        {offset !== 0 && <button className="week-today-btn" onClick={() => setOffset(0)}>今週</button>}
       </div>
 
       <div className="week-grid">
@@ -176,25 +342,34 @@ function WeekView({ tasks, onUpdate, onBulkUpdate }: Props) {
           const dateStr = toDateStr(day);
           const isToday = dateStr === todayStr;
           const isPast = dateStr < todayStr;
-          const dayTasks = tasks.filter(t => !t.completed && taskDisplayDate(t) === dateStr);
+          const dayTasks = sortByOrder(
+            tasks.filter(t => !t.completed && taskDisplayDate(t) === dateStr),
+            orderedIds
+          );
           const totalMin = dayTasks.reduce((s, t) => s + t.estimatedMinutes, 0);
 
           return (
-            <div key={dateStr} className={`week-col ${isToday ? 'today-col' : ''} ${isPast ? 'past-col' : ''}`}>
+            <div
+              key={dateStr}
+              className={`week-col${isToday ? ' today-col' : ''}${isPast ? ' past-col' : ''}${dragOverDate === dateStr ? ' drop-target' : ''}`}
+              onDragOver={e => handleDragOverCol(e, dateStr)}
+              onDragLeave={() => setDragOverDate(null)}
+              onDrop={e => handleDropOnCol(e, dateStr)}
+            >
               <div className="week-col-header">
                 <span className="week-day-label">{DAY_LABELS[i]}</span>
-                <span className={`week-date-num ${isToday ? 'today-num' : ''}`}>{day.getDate()}</span>
-                {totalMin > 0 && (
-                  <span className="week-total-min">{Math.round(totalMin / 60 * 10) / 10}h</span>
-                )}
+                <span className={`week-date-num${isToday ? ' today-num' : ''}`}>{day.getDate()}</span>
+                {totalMin > 0 && <span className="week-total-min">{Math.round(totalMin / 60 * 10) / 10}h</span>}
               </div>
               <div className="week-col-tasks">
-                {dayTasks.sort((a, b) => b.urgency - a.urgency).map(t => (
-                  <TaskChip key={t.id} task={t} onUpdate={onUpdate} />
+                {dayTasks.map(t => (
+                  <TaskChip
+                    key={t.id} task={t} onUpdate={onUpdate}
+                    isDraggable
+                    onDragStart={e => handleDragStart(e, t.id)}
+                  />
                 ))}
-                {dayTasks.length === 0 && (
-                  <div className="week-col-empty">—</div>
-                )}
+                {dayTasks.length === 0 && <div className="week-col-empty">—</div>}
               </div>
             </div>
           );
@@ -206,21 +381,21 @@ function WeekView({ tasks, onUpdate, onBulkUpdate }: Props) {
           未スケジュール ({tasks.filter(t => !t.completed && !taskDisplayDate(t)).length}件)
           <span className="panel-hint">📅 ボタンで日付を設定</span>
           {onBulkUpdate && tasks.filter(t => !t.completed && !taskDisplayDate(t) && t.category !== 'delegatable').length > 0 && (
-            <button
-              className="schedule-all-btn"
-              onClick={handleAutoSchedule}
-              disabled={scheduling}
-            >
+            <button className="schedule-all-btn" onClick={handleAutoSchedule} disabled={scheduling}>
               <Wand2 size={12} />
               {scheduling ? 'スケジューリング中…' : '一括スケジューリング'}
             </button>
           )}
         </div>
         <div className="unscheduled-chips">
-          {tasks
-            .filter(t => !t.completed && !taskDisplayDate(t))
-            .sort((a, b) => (b.urgency + b.importance) - (a.urgency + a.importance))
-            .map(t => <TaskChip key={t.id} task={t} onUpdate={onUpdate} />)
+          {sortByOrder(tasks.filter(t => !t.completed && !taskDisplayDate(t)), orderedIds)
+            .map(t => (
+              <TaskChip
+                key={t.id} task={t} onUpdate={onUpdate}
+                isDraggable
+                onDragStart={e => handleDragStart(e, t.id)}
+              />
+            ))
           }
           {tasks.filter(t => !t.completed && !taskDisplayDate(t)).length === 0 && (
             <span className="cal-empty-hint">すべてのタスクがスケジュール済みです</span>
@@ -234,6 +409,31 @@ function WeekView({ tasks, onUpdate, onBulkUpdate }: Props) {
 // ── Main CalendarView ─────────────────────────────────────────
 export default function CalendarView({ tasks, onUpdate, onBulkUpdate }: Props) {
   const [view, setView] = useState<'today' | 'week'>('today');
+
+  const [orderedIds, setOrderedIdsState] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('taskflow-task-order');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const setOrderedIds = (ids: string[]) => {
+    setOrderedIdsState(ids);
+    localStorage.setItem('taskflow-task-order', JSON.stringify(ids));
+  };
+
+  // Sync: add new tasks, prune deleted ones
+  useEffect(() => {
+    const allIds = tasks.filter(t => !t.completed).map(t => t.id);
+    setOrderedIdsState(prev => {
+      const valid = prev.filter(id => allIds.includes(id));
+      const newIds = allIds.filter(id => !prev.includes(id));
+      if (valid.length === prev.length && newIds.length === 0) return prev;
+      const merged = [...valid, ...newIds];
+      localStorage.setItem('taskflow-task-order', JSON.stringify(merged));
+      return merged;
+    });
+  }, [tasks]);
 
   const todayOverdueCount = tasks.filter(t => {
     const d = taskDisplayDate(t);
@@ -253,8 +453,8 @@ export default function CalendarView({ tasks, onUpdate, onBulkUpdate }: Props) {
       </div>
 
       {view === 'today'
-        ? <TodayView tasks={tasks} onUpdate={onUpdate} />
-        : <WeekView tasks={tasks} onUpdate={onUpdate} onBulkUpdate={onBulkUpdate} />
+        ? <TodayView tasks={tasks} onUpdate={onUpdate} orderedIds={orderedIds} setOrderedIds={setOrderedIds} />
+        : <WeekView tasks={tasks} onUpdate={onUpdate} onBulkUpdate={onBulkUpdate} orderedIds={orderedIds} />
       }
     </div>
   );
