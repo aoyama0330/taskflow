@@ -5,10 +5,13 @@ import type { Task, TimeSlot } from '../types/task';
 import { CATEGORY_META } from '../types/task';
 import { autoSchedule } from '../lib/scheduler';
 
-interface Props {
+interface BaseProps {
   tasks: Task[];
   onUpdate: (task: Task) => void;
   onBulkUpdate?: (tasks: Task[]) => void;
+}
+
+interface Props extends BaseProps {
   view: 'today' | 'week';
 }
 
@@ -181,7 +184,7 @@ function TaskChip({ task, onUpdate, showDate = false, isDraggable = false, isDra
 }
 
 // ── Today View ────────────────────────────────────────────────
-function TodayView({ tasks, onUpdate, orderedIds, setOrderedIds }: Props & {
+function TodayView({ tasks, onUpdate, orderedIds, setOrderedIds }: BaseProps & {
   orderedIds: string[];
   setOrderedIds: (ids: string[]) => void;
 }) {
@@ -296,7 +299,7 @@ function TodayView({ tasks, onUpdate, orderedIds, setOrderedIds }: Props & {
 }
 
 // ── Week View (Mon–Fri) ───────────────────────────────────────
-function WeekView({ tasks, onUpdate, onBulkUpdate, orderedIds }: Props & {
+function WeekView({ tasks, onUpdate, onBulkUpdate, orderedIds }: BaseProps & {
   orderedIds: string[];
 }) {
   const [offset, setOffset] = useState(0);
