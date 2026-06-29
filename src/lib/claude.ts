@@ -13,7 +13,11 @@ interface ExtractedTask {
   delegateTo: string | null;
 }
 
-const SYSTEM_PROMPT = `あなたはタスク管理アシスタントです。入力テキストからタスクを抽出し、JSON配列として返してください。
+const makeSystemPrompt = (today: string) =>
+  `あなたはタスク管理アシスタントです。入力テキストからタスクを抽出し、JSON配列として返してください。
+
+今日の日付: ${today}
+「明日」「来週」「今週中」などの相対表現はこの日付を基準に解釈してください。
 
 各タスクのフィールド:
 - title: 短いタイトル（50文字以内）
@@ -23,18 +27,19 @@ const SYSTEM_PROMPT = `あなたはタスク管理アシスタントです。入
 - estimatedMinutes: 想定所要時間（分）
 - urgency: 1〜10（緊急度。10が最高）
 - importance: 1〜10（重要度。10が最高）
-- deadline: 期日（ISO形式）またはnull
+- deadline: 期日（YYYY-MM-DD形式）またはnull
 - delegateTo: 担当者名またはnull
 
 JSONのみを返し、説明文は不要です。`;
 
 export const extractTasks = async (text: string, apiKey: string): Promise<Task[]> => {
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+  const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
 
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 2048,
-    system: SYSTEM_PROMPT,
+    system: makeSystemPrompt(today),
     messages: [{ role: 'user', content: text }],
   });
 
