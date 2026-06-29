@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, List, Clock, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, List, Clock, AlertCircle, Wand2 } from 'lucide-react';
 import type { Task } from '../types/task';
 import { CATEGORY_META } from '../types/task';
+import { autoSchedule } from '../lib/scheduler';
 
 interface Props {
   tasks: Task[];
   onUpdate: (task: Task) => void;
+  onBulkUpdate?: (tasks: Task[]) => void;
 }
 
 // ── Date helpers ──────────────────────────────────────────────
@@ -136,8 +138,18 @@ function TodayView({ tasks, onUpdate }: Props) {
 }
 
 // ── Week view ─────────────────────────────────────────────────
-function WeekView({ tasks, onUpdate }: Props) {
+function WeekView({ tasks, onUpdate, onBulkUpdate }: Props) {
   const [offset, setOffset] = useState(0);
+  const [scheduling, setScheduling] = useState(false);
+
+  const handleAutoSchedule = async () => {
+    if (!onBulkUpdate) return;
+    setScheduling(true);
+    const { scheduled } = autoSchedule(tasks);
+    const updated = scheduled.map(({ task, date }) => ({ ...task, scheduledDate: date }));
+    await onBulkUpdate(updated);
+    setScheduling(false);
+  };
   const monday = getMonday(offset);
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   const todayStr = today();
@@ -193,6 +205,16 @@ function WeekView({ tasks, onUpdate }: Props) {
         <div className="cal-section-header" style={{ marginBottom: 8 }}>
           未スケジュール ({tasks.filter(t => !t.completed && !taskDisplayDate(t)).length}件)
           <span className="panel-hint">📅 ボタンで日付を設定</span>
+          {onBulkUpdate && tasks.filter(t => !t.completed && !taskDisplayDate(t) && t.category !== 'delegatable').length > 0 && (
+            <button
+              className="schedule-all-btn"
+              onClick={handleAutoSchedule}
+              disabled={scheduling}
+            >
+              <Wand2 size={12} />
+              {scheduling ? 'スケジューリング中…' : '一括スケジューリング'}
+            </button>
+          )}
         </div>
         <div className="unscheduled-chips">
           {tasks
@@ -210,7 +232,7 @@ function WeekView({ tasks, onUpdate }: Props) {
 }
 
 // ── Main CalendarView ─────────────────────────────────────────
-export default function CalendarView({ tasks, onUpdate }: Props) {
+export default function CalendarView({ tasks, onUpdate, onBulkUpdate }: Props) {
   const [view, setView] = useState<'today' | 'week'>('today');
 
   const todayOverdueCount = tasks.filter(t => {
@@ -232,7 +254,7 @@ export default function CalendarView({ tasks, onUpdate }: Props) {
 
       {view === 'today'
         ? <TodayView tasks={tasks} onUpdate={onUpdate} />
-        : <WeekView tasks={tasks} onUpdate={onUpdate} />
+        : <WeekView tasks={tasks} onUpdate={onUpdate} onBulkUpdate={onBulkUpdate} />
       }
     </div>
   );

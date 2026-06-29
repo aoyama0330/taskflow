@@ -76,6 +76,14 @@ export default function App() {
     await deleteTask(id);
   };
 
+  const handleBulkUpdate = async (updated: Task[]) => {
+    setTasks(prev => prev.map(t => {
+      const u = updated.find(u => u.id === t.id);
+      return u ?? t;
+    }));
+    await Promise.all(updated.map(updateTask));
+  };
+
   const handleSignOut = () => supabase.auth.signOut();
 
   if (authLoading) {
@@ -149,7 +157,7 @@ export default function App() {
       ) : (
         <main className="calendar-body">
           <div className="calendar-main-col">
-            <CalendarView tasks={tasks} onUpdate={handleUpdate} />
+            <CalendarView tasks={tasks} onUpdate={handleUpdate} onBulkUpdate={handleBulkUpdate} />
           </div>
           <div className="calendar-side-col">
             <TaskInput apiKey={apiKey} onTasksAdded={handleTasksAdded} />
