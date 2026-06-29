@@ -401,35 +401,42 @@ body { background: var(--bg); min-height: 100vh; }
 
 /* ── Task chip ── */
 .cal-task-chip {
-  background: var(--surface2); border-left: 3px solid var(--border);
-  border-radius: 6px; padding: 8px 10px;
-  display: flex; flex-direction: column; gap: 4px;
-  transition: box-shadow 0.15s, border-top 0.1s;
-  cursor: default;
+  border-radius: 6px; padding: 7px 9px;
+  display: flex; flex-direction: column; gap: 3px;
+  cursor: pointer; color: #fff;
+  transition: filter 0.12s;
 }
-.cal-task-chip:hover { box-shadow: var(--shadow-sm); }
-.cal-task-chip.done { opacity: 0.5; }
-.cal-task-chip.drag-over { border-top: 2px solid var(--accent); }
+.cal-task-chip:hover { filter: brightness(0.9); }
+.cal-task-chip.drag-over { outline: 2px solid rgba(255,255,255,0.8); outline-offset: -2px; }
 
-.cal-chip-top { display: flex; align-items: center; gap: 6px; }
+/* done chips – faded neutral */
+.cal-chip-done {
+  background: var(--surface2); border-left: 3px solid var(--border);
+  border-radius: 6px; padding: 7px 9px;
+  display: flex; align-items: center; gap: 8px;
+  color: var(--text-faint); opacity: 0.6;
+  font-size: 12px;
+}
+
+.cal-chip-top { display: flex; align-items: center; gap: 5px; }
 .cal-chip-icon { font-size: 13px; flex-shrink: 0; }
-.cal-chip-title { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-chip-title { font-size: 12px; font-weight: 600; color: #fff; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .cal-chip-meta {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11px; color: var(--text-faint);
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; color: rgba(255,255,255,0.85);
 }
-.cal-chip-date { color: var(--accent-dark); font-weight: 500; }
+.cal-chip-date { color: rgba(255,255,255,0.9); font-weight: 600; }
 .cal-schedule-btn {
-  background: none; border: none; cursor: pointer; font-size: 12px;
-  padding: 0; margin-left: auto; opacity: 0.5;
+  background: none; border: none; cursor: pointer; font-size: 11px;
+  padding: 0; margin-left: auto; opacity: 0.6;
   transition: opacity 0.15s; flex-shrink: 0;
 }
 .cal-task-chip:hover .cal-schedule-btn { opacity: 1; }
 
 /* ── Drag handle ── */
-.drag-handle { color: var(--text-faint); cursor: grab; flex-shrink: 0; opacity: 0.4; }
-.cal-task-chip:hover .drag-handle { opacity: 0.8; }
+.drag-handle { color: rgba(255,255,255,0.6); cursor: grab; flex-shrink: 0; }
+.cal-task-chip:hover .drag-handle { color: rgba(255,255,255,0.9); }
 .cal-task-chip[draggable="true"] { cursor: grab; }
 .cal-task-chip[draggable="true"]:active { cursor: grabbing; }
 
@@ -489,8 +496,8 @@ body { background: var(--bg); min-height: 100vh; }
 }
 
 .week-grid {
-  display: grid; grid-template-columns: repeat(7, 1fr);
-  gap: 6px; min-height: 300px;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  gap: 8px; min-height: 300px;
 }
 .week-col {
   background: var(--surface2); border-radius: 6px; border: 1px solid var(--border);
@@ -528,25 +535,76 @@ body { background: var(--bg); min-height: 100vh; }
 .week-slot-empty { min-height: 32px; }
 .week-slot-divider { height: 1px; background: var(--border); margin: 0 5px; flex-shrink: 0; }
 
-/* smaller chips inside week slots */
-.week-slot .cal-task-chip { padding: 4px 6px; }
-.week-slot .cal-chip-title { font-size: 11px; }
-.week-slot .cal-chip-meta { font-size: 10px; gap: 4px; }
-.week-slot .cal-chip-top { gap: 4px; }
+/* chips inside week slots */
+.week-slot .cal-task-chip { padding: 6px 8px; }
+.week-slot .cal-chip-title { font-size: 12px; }
+.week-slot .cal-chip-meta { font-size: 11px; gap: 5px; }
+.week-slot .cal-chip-top { gap: 5px; }
 
-/* ── Task tooltip ── */
-.task-tooltip {
-  z-index: 900; pointer-events: none;
+/* ── Chip edit popup ── */
+.chip-edit-popup {
+  z-index: 1000;
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 8px; box-shadow: var(--shadow-md);
-  padding: 10px 12px; display: flex; flex-direction: column; gap: 5px;
+  border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.14);
+  padding: 0; overflow: hidden;
+  display: flex; flex-direction: column;
 }
-.tt-title { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.3; }
-.tt-desc { font-size: 11px; color: var(--text-dim); line-height: 1.4; }
-.tt-row {
-  display: flex; justify-content: space-between; gap: 12px;
+.cep-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px 8px;
+}
+.cep-category-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; color: #fff;
+}
+.cep-close-btn {
+  background: none; border: none; cursor: pointer; color: var(--text-faint);
+  padding: 3px; border-radius: 4px; display: flex; align-items: center;
+  transition: background 0.12s;
+}
+.cep-close-btn:hover { background: var(--surface2); color: var(--text); }
+.cep-title {
+  font-size: 15px; font-weight: 700; color: var(--text);
+  padding: 0 14px 10px; line-height: 1.3;
+}
+.cep-meta-row {
+  display: flex; gap: 10px; padding: 0 14px 10px;
   font-size: 11px; color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
 }
+.cep-field { padding: 10px 14px 0; display: flex; flex-direction: column; gap: 4px; }
+.cep-label { font-size: 11px; font-weight: 600; color: var(--text-dim); }
+.cep-date-input {
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 8px; font-size: 13px;
+  color: var(--text); background: var(--surface2);
+  outline: none;
+}
+.cep-date-input:focus { border-color: var(--accent); }
+.cep-memo {
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 8px; font-size: 13px; resize: vertical;
+  color: var(--text); background: var(--surface2);
+  font-family: inherit; outline: none;
+}
+.cep-memo:focus { border-color: var(--accent); }
+.cep-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 12px 14px;
+}
+.cep-cancel-btn {
+  padding: 6px 14px; border-radius: 6px; font-size: 12px;
+  border: 1px solid var(--border); background: none;
+  color: var(--text-dim); cursor: pointer;
+}
+.cep-cancel-btn:hover { background: var(--surface2); }
+.cep-save-btn {
+  padding: 6px 16px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  border: none; background: var(--accent); color: #fff; cursor: pointer;
+  transition: background 0.15s;
+}
+.cep-save-btn:hover { background: var(--accent-dark); }
 
 /* ── Unscheduled bar ── */
 .unscheduled-bar {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, CalendarDays, List, Clock, AlertCircle, Wand2, GripVertical } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, List, Clock, AlertCircle, Wand2, GripVertical, X } from 'lucide-react';
 import type { Task, TimeSlot } from '../types/task';
 import { CATEGORY_META } from '../types/task';
 import { autoSchedule } from '../lib/scheduler';
@@ -29,7 +29,7 @@ const addDays = (d: Date, n: number): Date => {
   return r;
 };
 
-const DAY_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
+const DAY_LABELS = ['月', '火', '水', '木', '金'];
 const taskDisplayDate = (t: Task) => t.scheduledDate || t.deadline;
 
 const sortByOrder = (arr: Task[], orderedIds: string[]): Task[] =>
@@ -42,29 +42,79 @@ const sortByOrder = (arr: Task[], orderedIds: string[]): Task[] =>
     return ai - bi;
   });
 
-// ── Task Tooltip ──────────────────────────────────────────────
-function TaskTooltip({ task, anchor }: { task: Task; anchor: DOMRect }) {
+// ── Chip Edit Popup ───────────────────────────────────────────
+function ChipEditPopup({ task, anchor, onUpdate, onClose }: {
+  task: Task;
+  anchor: DOMRect;
+  onUpdate: (t: Task) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
   const meta = CATEGORY_META[task.category];
-  const W = 240;
-  let left = anchor.right + 8;
-  if (left + W > window.innerWidth) left = anchor.left - W - 8;
+  const [deadline, setDeadline] = useState(task.deadline || '');
+  const [memo, setMemo] = useState(task.description || '');
+
+  const W = 300;
+  let left = anchor.right + 10;
+  if (left + W > window.innerWidth - 8) left = anchor.left - W - 10;
   left = Math.max(8, left);
-  const top = Math.min(anchor.top, window.innerHeight - 180);
+  const top = Math.min(anchor.top, window.innerHeight - 300);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    setTimeout(() => document.addEventListener('mousedown', handler), 0);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  const handleSave = () => {
+    onUpdate({ ...task, deadline: deadline || null, description: memo });
+    onClose();
+  };
 
   return createPortal(
-    <div className="task-tooltip" style={{ position: 'fixed', top, left, width: W }}>
-      <div className="tt-title">{task.title}</div>
-      {task.description && <div className="tt-desc">{task.description}</div>}
-      <div className="tt-row">
-        <span style={{ color: meta.color }}>{meta.icon} {meta.label}</span>
-        <span><Clock size={10} style={{ display: 'inline', verticalAlign: 'middle' }} /> {task.estimatedMinutes}分</span>
+    <div
+      ref={ref}
+      className="chip-edit-popup"
+      style={{ position: 'fixed', top, left, width: W }}
+      onMouseDown={e => e.stopPropagation()}
+    >
+      <div className="cep-header">
+        <span className="cep-category-badge" style={{ background: meta.color }}>
+          {meta.icon} {meta.label}
+        </span>
+        <button className="cep-close-btn" onClick={onClose}><X size={14} /></button>
       </div>
-      <div className="tt-row">
+      <div className="cep-title">{task.title}</div>
+      <div className="cep-meta-row">
+        <span><Clock size={11} /> {task.estimatedMinutes}分</span>
         <span>🔥 緊急 {task.urgency}/10</span>
         <span>⭐ 重要 {task.importance}/10</span>
       </div>
-      {task.deadline && <div className="tt-row">📅 期日: {task.deadline}</div>}
-      {task.delegateTo && <div className="tt-row">🤝 担当: {task.delegateTo}</div>}
+      <div className="cep-field">
+        <label className="cep-label">📅 期日</label>
+        <input
+          type="date"
+          value={deadline}
+          onChange={e => setDeadline(e.target.value)}
+          className="cep-date-input"
+        />
+      </div>
+      <div className="cep-field">
+        <label className="cep-label">📝 メモ</label>
+        <textarea
+          value={memo}
+          onChange={e => setMemo(e.target.value)}
+          className="cep-memo"
+          rows={3}
+          placeholder="メモを入力..."
+        />
+      </div>
+      <div className="cep-actions">
+        <button className="cep-cancel-btn" onClick={onClose}>キャンセル</button>
+        <button className="cep-save-btn" onClick={handleSave}>保存</button>
+      </div>
     </div>,
     document.body
   );
@@ -111,7 +161,7 @@ function MiniCalendar({ anchor, value, onChange, onClose }: {
     <div
       ref={ref}
       className="mini-cal-popup"
-      style={{ position: 'fixed', top: anchor.top, right: anchor.right }}
+      style={{ position: 'fixed', top: anchor.top, right: anchor.right, zIndex: 1100 }}
       onMouseDown={e => e.stopPropagation()}
     >
       <div className="mini-cal-quick">
@@ -163,11 +213,12 @@ function TaskChip({ task, onUpdate, showDate = false, isDraggable = false, isDra
   onDragStart, onDragOver, onDragEnd, onDrop }: ChipProps) {
   const meta = CATEGORY_META[task.category];
   const [calAnchor, setCalAnchor] = useState<{ top: number; right: number } | null>(null);
-  const [hoverRect, setHoverRect] = useState<DOMRect | null>(null);
+  const [editAnchor, setEditAnchor] = useState<DOMRect | null>(null);
   const chipRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
-  const toggleCal = () => {
+  const toggleCal = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (calAnchor) { setCalAnchor(null); return; }
     if (btnRef.current) {
       const r = btnRef.current.getBoundingClientRect();
@@ -175,41 +226,54 @@ function TaskChip({ task, onUpdate, showDate = false, isDraggable = false, isDra
     }
   };
 
+  const handleChipClick = () => {
+    if (calAnchor) return;
+    if (chipRef.current) setEditAnchor(chipRef.current.getBoundingClientRect());
+  };
+
   return (
-    <div
-      ref={chipRef}
-      className={`cal-task-chip${isDragOver ? ' drag-over' : ''}`}
-      style={{ borderLeftColor: meta.color }}
-      draggable={isDraggable}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDragEnd={onDragEnd}
-      onDrop={onDrop}
-      onMouseEnter={() => chipRef.current && setHoverRect(chipRef.current.getBoundingClientRect())}
-      onMouseLeave={() => setHoverRect(null)}
-    >
-      <div className="cal-chip-top">
-        {isDraggable && <GripVertical size={11} className="drag-handle" />}
-        <span className="cal-chip-icon">{meta.icon}</span>
-        <span className="cal-chip-title">{task.title}</span>
+    <>
+      <div
+        ref={chipRef}
+        className={`cal-task-chip${isDragOver ? ' drag-over' : ''}`}
+        style={{ background: meta.color }}
+        draggable={isDraggable}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+        onDrop={onDrop}
+        onClick={handleChipClick}
+      >
+        <div className="cal-chip-top">
+          {isDraggable && <GripVertical size={11} className="drag-handle" />}
+          <span className="cal-chip-icon">{meta.icon}</span>
+          <span className="cal-chip-title">{task.title}</span>
+        </div>
+        <div className="cal-chip-meta">
+          <span><Clock size={10} /> {task.estimatedMinutes}分</span>
+          {showDate && taskDisplayDate(task) && (
+            <span className="cal-chip-date">{taskDisplayDate(task)}</span>
+          )}
+          <button ref={btnRef} className="cal-schedule-btn" onClick={toggleCal} title="日付を変更">📅</button>
+          {calAnchor && (
+            <MiniCalendar
+              anchor={calAnchor}
+              value={task.scheduledDate}
+              onChange={val => { onUpdate({ ...task, scheduledDate: val }); setCalAnchor(null); }}
+              onClose={() => setCalAnchor(null)}
+            />
+          )}
+        </div>
       </div>
-      <div className="cal-chip-meta">
-        <span><Clock size={10} /> {task.estimatedMinutes}分</span>
-        {showDate && taskDisplayDate(task) && (
-          <span className="cal-chip-date">{taskDisplayDate(task)}</span>
-        )}
-        <button ref={btnRef} className="cal-schedule-btn" onClick={toggleCal} title="日付を変更">📅</button>
-        {calAnchor && (
-          <MiniCalendar
-            anchor={calAnchor}
-            value={task.scheduledDate}
-            onChange={val => { onUpdate({ ...task, scheduledDate: val }); setCalAnchor(null); }}
-            onClose={() => setCalAnchor(null)}
-          />
-        )}
-      </div>
-      {hoverRect && !calAnchor && <TaskTooltip task={task} anchor={hoverRect} />}
-    </div>
+      {editAnchor && (
+        <ChipEditPopup
+          task={task}
+          anchor={editAnchor}
+          onUpdate={onUpdate}
+          onClose={() => setEditAnchor(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -309,11 +373,11 @@ function TodayView({ tasks, onUpdate, orderedIds, setOrderedIds }: Props & {
         <section className="cal-section">
           <div className="cal-section-header done-header">✓ 今日の完了 ({completed.length})</div>
           {completed.map(t => (
-            <div key={t.id} className="cal-task-chip done">
-              <span className="cal-chip-title" style={{ textDecoration: 'line-through', color: 'var(--text-faint)' }}>
+            <div key={t.id} className="cal-task-chip cal-chip-done">
+              <span className="cal-chip-title" style={{ textDecoration: 'line-through' }}>
                 {t.title}
               </span>
-              {t.actualMinutes && <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{t.actualMinutes}分</span>}
+              {t.actualMinutes && <span style={{ fontSize: 11 }}>{t.actualMinutes}分</span>}
             </div>
           ))}
         </section>
@@ -322,7 +386,7 @@ function TodayView({ tasks, onUpdate, orderedIds, setOrderedIds }: Props & {
   );
 }
 
-// ── Week View ─────────────────────────────────────────────────
+// ── Week View (Mon–Fri) ───────────────────────────────────────
 function WeekView({ tasks, onUpdate, onBulkUpdate, orderedIds }: Props & {
   orderedIds: string[];
 }) {
@@ -330,10 +394,10 @@ function WeekView({ tasks, onUpdate, onBulkUpdate, orderedIds }: Props & {
   const [scheduling, setScheduling] = useState(false);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const monday = getMonday(offset);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+  const days = Array.from({ length: 5 }, (_, i) => addDays(monday, i)); // Mon–Fri only
   const todayStr = today();
 
-  const rangeLabel = `${monday.getMonth() + 1}/${monday.getDate()} 〜 ${addDays(monday, 6).getMonth() + 1}/${addDays(monday, 6).getDate()}`;
+  const rangeLabel = `${monday.getMonth() + 1}/${monday.getDate()} 〜 ${addDays(monday, 4).getMonth() + 1}/${addDays(monday, 4).getDate()}`;
 
   const handleAutoSchedule = async () => {
     if (!onBulkUpdate) return;
