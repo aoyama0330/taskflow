@@ -1,5 +1,6 @@
 export type TaskCategory = 'quick' | 'urgent' | 'deep' | 'execution' | 'delegatable';
 export type EnergyLevel = 'high' | 'low';
+export type TimeSlot = 'am' | 'pm';
 
 export interface Task {
   id: string;
@@ -13,6 +14,7 @@ export interface Task {
   importance: number;
   deadline: string | null;
   scheduledDate: string | null;
+  timeSlot: TimeSlot | null;
   delegateTo: string | null;
   completed: boolean;
   completedAt: string | null;

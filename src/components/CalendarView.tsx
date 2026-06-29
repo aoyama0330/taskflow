@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, CalendarDays, List, Clock, AlertCircle, Wand2, GripVertical } from 'lucide-react';
-import type { Task } from '../types/task';
+import type { Task, TimeSlot } from '../types/task';
 import { CATEGORY_META } from '../types/task';
 import { autoSchedule } from '../lib/scheduler';
 
@@ -42,6 +42,34 @@ const sortByOrder = (arr: Task[], orderedIds: string[]): Task[] =>
     return ai - bi;
   });
 
+// ── Task Tooltip ──────────────────────────────────────────────
+function TaskTooltip({ task, anchor }: { task: Task; anchor: DOMRect }) {
+  const meta = CATEGORY_META[task.category];
+  const W = 240;
+  let left = anchor.right + 8;
+  if (left + W > window.innerWidth) left = anchor.left - W - 8;
+  left = Math.max(8, left);
+  const top = Math.min(anchor.top, window.innerHeight - 180);
+
+  return createPortal(
+    <div className="task-tooltip" style={{ position: 'fixed', top, left, width: W }}>
+      <div className="tt-title">{task.title}</div>
+      {task.description && <div className="tt-desc">{task.description}</div>}
+      <div className="tt-row">
+        <span style={{ color: meta.color }}>{meta.icon} {meta.label}</span>
+        <span><Clock size={10} style={{ display: 'inline', verticalAlign: 'middle' }} /> {task.estimatedMinutes}分</span>
+      </div>
+      <div className="tt-row">
+        <span>🔥 緊急 {task.urgency}/10</span>
+        <span>⭐ 重要 {task.importance}/10</span>
+      </div>
+      {task.deadline && <div className="tt-row">📅 期日: {task.deadline}</div>}
+      {task.delegateTo && <div className="tt-row">🤝 担当: {task.delegateTo}</div>}
+    </div>,
+    document.body
+  );
+}
+
 // ── Mini Calendar (portal, position: fixed) ───────────────────
 function MiniCalendar({ anchor, value, onChange, onClose }: {
   anchor: { top: number; right: number };
@@ -69,7 +97,7 @@ function MiniCalendar({ anchor, value, onChange, onClose }: {
   const year = viewMonth.getFullYear();
   const mon = viewMonth.getMonth();
   const daysInMonth = new Date(year, mon + 1, 0).getDate();
-  const firstDow = (new Date(year, mon, 1).getDay() + 6) % 7; // Mon=0
+  const firstDow = (new Date(year, mon, 1).getDay() + 6) % 7;
 
   const ds = (d: number) =>
     `${year}-${String(mon + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -135,6 +163,8 @@ function TaskChip({ task, onUpdate, showDate = false, isDraggable = false, isDra
   onDragStart, onDragOver, onDragEnd, onDrop }: ChipProps) {
   const meta = CATEGORY_META[task.category];
   const [calAnchor, setCalAnchor] = useState<{ top: number; right: number } | null>(null);
+  const [hoverRect, setHoverRect] = useState<DOMRect | null>(null);
+  const chipRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
   const toggleCal = () => {
@@ -147,6 +177,7 @@ function TaskChip({ task, onUpdate, showDate = false, isDraggable = false, isDra
 
   return (
     <div
+      ref={chipRef}
       className={`cal-task-chip${isDragOver ? ' drag-over' : ''}`}
       style={{ borderLeftColor: meta.color }}
       draggable={isDraggable}
@@ -154,6 +185,8 @@ function TaskChip({ task, onUpdate, showDate = false, isDraggable = false, isDra
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDrop={onDrop}
+      onMouseEnter={() => chipRef.current && setHoverRect(chipRef.current.getBoundingClientRect())}
+      onMouseLeave={() => setHoverRect(null)}
     >
       <div className="cal-chip-top">
         {isDraggable && <GripVertical size={11} className="drag-handle" />}
@@ -175,6 +208,7 @@ function TaskChip({ task, onUpdate, showDate = false, isDraggable = false, isDra
           />
         )}
       </div>
+      {hoverRect && !calAnchor && <TaskTooltip task={task} anchor={hoverRect} />}
     </div>
   );
 }
@@ -232,7 +266,6 @@ function TodayView({ tasks, onUpdate, orderedIds, setOrderedIds }: Props & {
     if (sourceId && sourceId !== targetId) reorder(sourceId, targetId);
     setDragOverId(null);
   };
-  const handleDragEnd = () => setDragOverId(null);
 
   return (
     <div className="today-view">
@@ -258,7 +291,7 @@ function TodayView({ tasks, onUpdate, orderedIds, setOrderedIds }: Props & {
             onDragStart={e => handleDragStart(e, t.id)}
             onDragOver={e => handleDragOver(e, t.id)}
             onDrop={e => handleDrop(e, t.id)}
-            onDragEnd={handleDragEnd}
+            onDragEnd={() => setDragOverId(null)}
           />
         ))}
       </section>
@@ -295,7 +328,7 @@ function WeekView({ tasks, onUpdate, onBulkUpdate, orderedIds }: Props & {
 }) {
   const [offset, setOffset] = useState(0);
   const [scheduling, setScheduling] = useState(false);
-  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const monday = getMonday(offset);
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   const todayStr = today();
@@ -315,17 +348,14 @@ function WeekView({ tasks, onUpdate, onBulkUpdate, orderedIds }: Props & {
     e.dataTransfer.setData('taskId', taskId);
     e.dataTransfer.effectAllowed = 'move';
   };
-  const handleDragOverCol = (e: React.DragEvent, dateStr: string) => {
+
+  const handleDropOnSlot = (e: React.DragEvent, dateStr: string, slot: TimeSlot) => {
     e.preventDefault();
-    setDragOverDate(dateStr);
-  };
-  const handleDropOnCol = (e: React.DragEvent, dateStr: string) => {
+    e.stopPropagation();
     const taskId = e.dataTransfer.getData('taskId');
     const task = tasks.find(t => t.id === taskId);
-    if (task && taskDisplayDate(task) !== dateStr) {
-      onUpdate({ ...task, scheduledDate: dateStr });
-    }
-    setDragOverDate(null);
+    if (task) onUpdate({ ...task, scheduledDate: dateStr, timeSlot: slot });
+    setDragOverSlot(null);
   };
 
   return (
@@ -342,34 +372,59 @@ function WeekView({ tasks, onUpdate, onBulkUpdate, orderedIds }: Props & {
           const dateStr = toDateStr(day);
           const isToday = dateStr === todayStr;
           const isPast = dateStr < todayStr;
-          const dayTasks = sortByOrder(
+          const allDayTasks = sortByOrder(
             tasks.filter(t => !t.completed && taskDisplayDate(t) === dateStr),
             orderedIds
           );
-          const totalMin = dayTasks.reduce((s, t) => s + t.estimatedMinutes, 0);
+          const amTasks = allDayTasks.filter(t => t.timeSlot !== 'pm');
+          const pmTasks = allDayTasks.filter(t => t.timeSlot === 'pm');
+          const totalMin = allDayTasks.reduce((s, t) => s + t.estimatedMinutes, 0);
 
           return (
             <div
               key={dateStr}
-              className={`week-col${isToday ? ' today-col' : ''}${isPast ? ' past-col' : ''}${dragOverDate === dateStr ? ' drop-target' : ''}`}
-              onDragOver={e => handleDragOverCol(e, dateStr)}
-              onDragLeave={() => setDragOverDate(null)}
-              onDrop={e => handleDropOnCol(e, dateStr)}
+              className={`week-col${isToday ? ' today-col' : ''}${isPast ? ' past-col' : ''}`}
             >
               <div className="week-col-header">
                 <span className="week-day-label">{DAY_LABELS[i]}</span>
                 <span className={`week-date-num${isToday ? ' today-num' : ''}`}>{day.getDate()}</span>
                 {totalMin > 0 && <span className="week-total-min">{Math.round(totalMin / 60 * 10) / 10}h</span>}
               </div>
-              <div className="week-col-tasks">
-                {dayTasks.map(t => (
-                  <TaskChip
-                    key={t.id} task={t} onUpdate={onUpdate}
-                    isDraggable
-                    onDragStart={e => handleDragStart(e, t.id)}
-                  />
-                ))}
-                {dayTasks.length === 0 && <div className="week-col-empty">—</div>}
+
+              {/* 午前 */}
+              <div
+                className={`week-slot${dragOverSlot === `${dateStr}-am` ? ' drop-target' : ''}`}
+                onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverSlot(`${dateStr}-am`); }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverSlot(null); }}
+                onDrop={e => handleDropOnSlot(e, dateStr, 'am')}
+              >
+                <div className="week-slot-label">午前</div>
+                <div className="week-slot-tasks">
+                  {amTasks.map(t => (
+                    <TaskChip key={t.id} task={t} onUpdate={onUpdate}
+                      isDraggable onDragStart={e => handleDragStart(e, t.id)} />
+                  ))}
+                  {amTasks.length === 0 && <div className="week-slot-empty" />}
+                </div>
+              </div>
+
+              <div className="week-slot-divider" />
+
+              {/* 午後 */}
+              <div
+                className={`week-slot${dragOverSlot === `${dateStr}-pm` ? ' drop-target' : ''}`}
+                onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverSlot(`${dateStr}-pm`); }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverSlot(null); }}
+                onDrop={e => handleDropOnSlot(e, dateStr, 'pm')}
+              >
+                <div className="week-slot-label">午後</div>
+                <div className="week-slot-tasks">
+                  {pmTasks.map(t => (
+                    <TaskChip key={t.id} task={t} onUpdate={onUpdate}
+                      isDraggable onDragStart={e => handleDragStart(e, t.id)} />
+                  ))}
+                  {pmTasks.length === 0 && <div className="week-slot-empty" />}
+                </div>
               </div>
             </div>
           );
@@ -390,11 +445,8 @@ function WeekView({ tasks, onUpdate, onBulkUpdate, orderedIds }: Props & {
         <div className="unscheduled-chips">
           {sortByOrder(tasks.filter(t => !t.completed && !taskDisplayDate(t)), orderedIds)
             .map(t => (
-              <TaskChip
-                key={t.id} task={t} onUpdate={onUpdate}
-                isDraggable
-                onDragStart={e => handleDragStart(e, t.id)}
-              />
+              <TaskChip key={t.id} task={t} onUpdate={onUpdate}
+                isDraggable onDragStart={e => handleDragStart(e, t.id)} />
             ))
           }
           {tasks.filter(t => !t.completed && !taskDisplayDate(t)).length === 0 && (
@@ -422,7 +474,6 @@ export default function CalendarView({ tasks, onUpdate, onBulkUpdate }: Props) {
     localStorage.setItem('taskflow-task-order', JSON.stringify(ids));
   };
 
-  // Sync: add new tasks, prune deleted ones
   useEffect(() => {
     const allIds = tasks.filter(t => !t.completed).map(t => t.id);
     setOrderedIdsState(prev => {
