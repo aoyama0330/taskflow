@@ -8,11 +8,13 @@ export interface Task {
   category: TaskCategory;
   energyLevel: EnergyLevel;
   estimatedMinutes: number;
-  urgency: number;      // 1–10
-  importance: number;   // 1–10
+  actualMinutes: number | null;
+  urgency: number;
+  importance: number;
   deadline: string | null;
   delegateTo: string | null;
   completed: boolean;
+  completedAt: string | null;
   createdAt: string;
   tags: string[];
 }

@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Check, Trash2, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Check, Trash2, Clock, ChevronDown, ChevronUp, Timer } from 'lucide-react';
 import type { Task, TaskCategory } from '../types/task';
 import { CATEGORY_META } from '../types/task';
 
 interface Props {
   tasks: Task[];
-  onToggle: (id: string) => void;
+  onToggle: (id: string, actualMinutes?: number) => void;
   onDelete: (id: string) => void;
 }
 
@@ -67,25 +67,71 @@ export default function TaskList({ tasks, onToggle, onDelete }: Props) {
   );
 }
 
-function TaskItem({ task, onToggle, onDelete }: { task: Task; onToggle: (id: string) => void; onDelete: (id: string) => void }) {
+function TaskItem({ task, onToggle, onDelete }: {
+  task: Task;
+  onToggle: (id: string, actualMinutes?: number) => void;
+  onDelete: (id: string) => void;
+}) {
   const meta = CATEGORY_META[task.category];
+  const [showActual, setShowActual] = useState(false);
+  const [actualInput, setActualInput] = useState(String(task.estimatedMinutes));
+
+  const handleCheck = () => {
+    if (!task.completed) {
+      setShowActual(true);
+    } else {
+      onToggle(task.id);
+    }
+  };
+
+  const handleActualSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const mins = parseInt(actualInput, 10);
+    onToggle(task.id, isNaN(mins) ? undefined : mins);
+    setShowActual(false);
+  };
 
   return (
     <div className={`task-item ${task.completed ? 'completed' : ''}`} style={{ borderLeftColor: meta.color }}>
-      <button className={`check-btn ${task.completed ? 'checked' : ''}`} onClick={() => onToggle(task.id)}>
+      <button className={`check-btn ${task.completed ? 'checked' : ''}`} onClick={handleCheck}>
         {task.completed && <Check size={12} />}
       </button>
 
       <div className="task-body">
         <div className="task-title">{task.title}</div>
         {task.description && <div className="task-desc">{task.description}</div>}
+
+        {/* 実績時間入力フォーム */}
+        {showActual && (
+          <form onSubmit={handleActualSubmit} className="actual-form">
+            <Timer size={12} style={{ color: '#ff9800' }} />
+            <span className="actual-label">実際にかかった時間：</span>
+            <input
+              type="number" min="1" value={actualInput}
+              onChange={e => setActualInput(e.target.value)}
+              className="actual-input"
+              autoFocus
+            />
+            <span className="actual-label">分</span>
+            <button type="submit" className="actual-btn">完了</button>
+            <button type="button" className="actual-btn-skip" onClick={() => { onToggle(task.id); setShowActual(false); }}>
+              スキップ
+            </button>
+          </form>
+        )}
+
         <div className="task-meta-row">
           <span className="category-badge" style={{ color: meta.color, borderColor: meta.color }}>
             {meta.icon} {meta.label}
           </span>
           <span className="time-badge">
-            <Clock size={11} /> {task.estimatedMinutes}分
+            <Clock size={11} /> 見積 {task.estimatedMinutes}分
           </span>
+          {task.completed && task.actualMinutes && (
+            <span className="time-badge" style={{ color: '#ff9800' }}>
+              <Timer size={11} /> 実績 {task.actualMinutes}分
+            </span>
+          )}
           <span className="score-badge">緊急{task.urgency} 重要{task.importance}</span>
           {task.deadline && (
             <span className="deadline-badge">
@@ -94,6 +140,11 @@ function TaskItem({ task, onToggle, onDelete }: { task: Task; onToggle: (id: str
           )}
           {task.delegateTo && (
             <span className="delegate-badge">→ {task.delegateTo}</span>
+          )}
+          {task.completed && task.completedAt && (
+            <span className="completed-at-badge">
+              ✓ {new Date(task.completedAt).toLocaleDateString('ja-JP')}
+            </span>
           )}
         </div>
       </div>

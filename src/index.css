@@ -33,12 +33,6 @@ body { background: var(--bg); min-height: 100vh; }
 .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; color: #fff; }
 .tagline { font-size: 12px; color: var(--text-dim); }
 
-.key-bar {
-  padding: 10px 24px;
-  background: var(--surface2);
-  border-bottom: 1px solid var(--border);
-}
-
 .app-body {
   display: grid;
   grid-template-columns: 1fr 420px;
@@ -185,6 +179,38 @@ body { background: var(--bg); min-height: 100vh; }
 }
 .delegate-badge { color: #ab47bc; }
 .deadline-badge { color: #ff9800; }
+.completed-at-badge { font-size: 11px; color: var(--text-faint); }
+
+/* ── Actual time form ── */
+.actual-form {
+  display: flex; align-items: center; gap: 6px;
+  background: #1a1a0a; border: 1px solid #ff980055;
+  border-radius: 6px; padding: 6px 10px; margin: 6px 0;
+}
+.actual-label { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.actual-input {
+  width: 60px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text); font-size: 12px;
+  padding: 3px 6px; text-align: center;
+}
+.actual-input:focus { outline: none; border-color: #ff9800; }
+.actual-btn {
+  padding: 3px 10px; border-radius: 4px; border: none;
+  background: #ff9800; color: #000; font-size: 11px; font-weight: 600;
+  cursor: pointer;
+}
+.actual-btn-skip {
+  padding: 3px 8px; border-radius: 4px;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--text-dim); font-size: 11px; cursor: pointer;
+}
+
+/* ── Key bar ── */
+.key-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 24px; background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
 
 .delete-btn {
   background: transparent; border: none; color: var(--text-faint);
