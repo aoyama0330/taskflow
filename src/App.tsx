@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, LogOut, Loader2, LayoutDashboard, CalendarDays } from 'lucide-react';
+import { Settings, LogOut, Loader2, LayoutDashboard, CalendarDays, List } from 'lucide-react';
 import Auth from './components/Auth';
 import TaskInput from './components/TaskInput';
 import TaskList from './components/TaskList';
@@ -16,7 +16,7 @@ import './index.css';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AuthUser = any;
 
-type AppView = 'dashboard' | 'calendar';
+type AppView = 'week' | 'today' | 'analysis';
 
 export default function App() {
   const [user, setUser] = useState<AuthUser>(null);
@@ -25,7 +25,7 @@ export default function App() {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [apiKey, setApiKey] = useState(() => loadApiKey());
   const [showKeyInput, setShowKeyInput] = useState(false);
-  const [view, setView] = useState<AppView>('dashboard');
+  const [view, setView] = useState<AppView>('week');
 
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -106,17 +106,19 @@ export default function App() {
         </div>
 
         <nav className="app-nav">
-          <button
-            className={`nav-tab ${view === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setView('dashboard')}
-          >
-            <LayoutDashboard size={14} /> ダッシュボード
+          <button className={`nav-tab ${view === 'week' ? 'active' : ''}`} onClick={() => setView('week')}>
+            <CalendarDays size={14} /> カレンダー（週）
           </button>
-          <button
-            className={`nav-tab ${view === 'calendar' ? 'active' : ''}`}
-            onClick={() => setView('calendar')}
-          >
-            <CalendarDays size={14} /> カレンダー
+          <button className={`nav-tab ${view === 'today' ? 'active' : ''}`} onClick={() => setView('today')} style={{ position: 'relative' }}>
+            <List size={14} /> カレンダー（日）
+            {(() => {
+              const d = new Date().toISOString().split('T')[0];
+              const n = tasks.filter(t => !t.completed && (t.scheduledDate || t.deadline) && (t.scheduledDate || t.deadline)! <= d).length;
+              return n > 0 ? <span className="cal-badge">{n}</span> : null;
+            })()}
+          </button>
+          <button className={`nav-tab ${view === 'analysis' ? 'active' : ''}`} onClick={() => setView('analysis')}>
+            <LayoutDashboard size={14} /> タスク分析
           </button>
         </nav>
 
@@ -141,7 +143,7 @@ export default function App() {
         </div>
       )}
 
-      {view === 'dashboard' ? (
+      {view === 'analysis' ? (
         <main className="app-body">
           <div className="left-col">
             <TaskInput apiKey={apiKey} onTasksAdded={handleTasksAdded} />
@@ -158,7 +160,7 @@ export default function App() {
       ) : (
         <main className="calendar-body">
           <div className="calendar-main-col">
-            <CalendarView tasks={tasks} onUpdate={handleUpdate} onBulkUpdate={handleBulkUpdate} />
+            <CalendarView tasks={tasks} onUpdate={handleUpdate} onBulkUpdate={handleBulkUpdate} view={view} />
           </div>
           <div className="calendar-side-col">
             <TaskInput apiKey={apiKey} onTasksAdded={handleTasksAdded} />

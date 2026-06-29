@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, CalendarDays, List, Clock, AlertCircle, Wand2, GripVertical, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, AlertCircle, Wand2, GripVertical, X } from 'lucide-react';
 import type { Task, TimeSlot } from '../types/task';
 import { CATEGORY_META } from '../types/task';
 import { autoSchedule } from '../lib/scheduler';
@@ -9,6 +9,7 @@ interface Props {
   tasks: Task[];
   onUpdate: (task: Task) => void;
   onBulkUpdate?: (tasks: Task[]) => void;
+  view: 'today' | 'week';
 }
 
 // ── Date helpers ──────────────────────────────────────────────
@@ -431,9 +432,7 @@ function WeekView({ tasks, onUpdate, onBulkUpdate, orderedIds }: Props & {
 }
 
 // ── Main CalendarView ─────────────────────────────────────────
-export default function CalendarView({ tasks, onUpdate, onBulkUpdate }: Props) {
-  const [view, setView] = useState<'today' | 'week'>('today');
-
+export default function CalendarView({ tasks, onUpdate, onBulkUpdate, view }: Props) {
   const [orderedIds, setOrderedIdsState] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('taskflow-task-order');
@@ -458,23 +457,8 @@ export default function CalendarView({ tasks, onUpdate, onBulkUpdate }: Props) {
     });
   }, [tasks]);
 
-  const todayOverdueCount = tasks.filter(t => {
-    const d = taskDisplayDate(t);
-    return !t.completed && d && d <= today();
-  }).length;
-
   return (
     <div className="calendar-panel">
-      <div className="cal-tabs">
-        <button className={`cal-tab ${view === 'today' ? 'active' : ''}`} onClick={() => setView('today')}>
-          <List size={14} /> 今日
-          {todayOverdueCount > 0 && <span className="cal-badge">{todayOverdueCount}</span>}
-        </button>
-        <button className={`cal-tab ${view === 'week' ? 'active' : ''}`} onClick={() => setView('week')}>
-          <CalendarDays size={14} /> 今週
-        </button>
-      </div>
-
       {view === 'today'
         ? <TodayView tasks={tasks} onUpdate={onUpdate} orderedIds={orderedIds} setOrderedIds={setOrderedIds} />
         : <WeekView tasks={tasks} onUpdate={onUpdate} onBulkUpdate={onBulkUpdate} orderedIds={orderedIds} />
