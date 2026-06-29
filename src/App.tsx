@@ -6,6 +6,7 @@ import TaskList from './components/TaskList';
 import BubbleChart from './components/BubbleChart';
 import MentorPanel from './components/MentorPanel';
 import CalendarView from './components/CalendarView';
+import DoneZone from './components/DoneZone';
 import { loadApiKey, saveApiKey } from './lib/storage';
 import { fetchTasks, insertTask, updateTask, deleteTask } from './lib/db';
 import { supabase } from './lib/supabase';
@@ -161,6 +162,7 @@ export default function App() {
           </div>
           <div className="calendar-side-col">
             <TaskInput apiKey={apiKey} onTasksAdded={handleTasksAdded} />
+            <DoneZone tasks={tasks} onComplete={task => handleUpdate({ ...task, completed: true, completedAt: new Date().toISOString() })} />
             <MentorPanel tasks={tasks} apiKey={apiKey} />
           </div>
         </main>

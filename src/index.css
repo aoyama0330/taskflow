@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700;900&display=swap');
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -14,7 +16,7 @@
   --shadow-sm:  0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
   --shadow-md:  0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
   --radius: 8px;
-  font-family: -apple-system, 'Hiragino Sans', 'Helvetica Neue', sans-serif;
+  font-family: 'M PLUS 1p', -apple-system, 'Hiragino Sans', 'Helvetica Neue', sans-serif;
   font-size: 14px;
   color: var(--text);
   background: var(--bg);
@@ -360,6 +362,8 @@ body { background: var(--bg); min-height: 100vh; }
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); box-shadow: var(--shadow-sm);
   overflow: hidden;
+  display: flex; flex-direction: column;
+  height: calc(100vh - 130px);
 }
 
 /* ── Cal tabs ── */
@@ -385,7 +389,7 @@ body { background: var(--bg); min-height: 100vh; }
 }
 
 /* ── Today view ── */
-.today-view { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.today-view { padding: 16px; display: flex; flex-direction: column; gap: 16px; flex: 1; overflow-y: auto; min-height: 0; }
 
 .cal-section { display: flex; flex-direction: column; gap: 6px; }
 .cal-section-header {
@@ -420,23 +424,17 @@ body { background: var(--bg); min-height: 100vh; }
 
 .cal-chip-top { display: flex; align-items: center; gap: 5px; }
 .cal-chip-icon { font-size: 13px; flex-shrink: 0; }
-.cal-chip-title { font-size: 12px; font-weight: 600; color: #fff; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-chip-title { font-size: 12px; font-weight: 600; flex: 1; min-width: 0; white-space: normal; line-height: 1.35; word-break: break-all; }
 
 .cal-chip-meta {
   display: flex; align-items: center; gap: 6px;
-  font-size: 10px; color: rgba(255,255,255,0.85);
+  font-size: 10px; opacity: 0.75;
 }
-.cal-chip-date { color: rgba(255,255,255,0.9); font-weight: 600; }
-.cal-schedule-btn {
-  background: none; border: none; cursor: pointer; font-size: 11px;
-  padding: 0; margin-left: auto; opacity: 0.6;
-  transition: opacity 0.15s; flex-shrink: 0;
-}
-.cal-task-chip:hover .cal-schedule-btn { opacity: 1; }
+.cal-chip-date { font-weight: 600; }
 
 /* ── Drag handle ── */
-.drag-handle { color: rgba(255,255,255,0.6); cursor: grab; flex-shrink: 0; }
-.cal-task-chip:hover .drag-handle { color: rgba(255,255,255,0.9); }
+.drag-handle { opacity: 0.45; cursor: grab; flex-shrink: 0; }
+.cal-task-chip:hover .drag-handle { opacity: 0.8; }
 .cal-task-chip[draggable="true"] { cursor: grab; }
 .cal-task-chip[draggable="true"]:active { cursor: grabbing; }
 
@@ -477,7 +475,7 @@ body { background: var(--bg); min-height: 100vh; }
 .mini-cal-day.is-selected { background: var(--accent); color: #fff; border-radius: 50%; }
 
 /* ── Week view ── */
-.week-view { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.week-view { padding: 16px; display: flex; flex-direction: column; gap: 16px; flex: 1; overflow-y: auto; min-height: 0; }
 
 .week-nav {
   display: flex; align-items: center; gap: 8px;
@@ -501,7 +499,7 @@ body { background: var(--bg); min-height: 100vh; }
 }
 .week-col {
   background: var(--surface2); border-radius: 6px; border: 1px solid var(--border);
-  overflow: hidden; display: flex; flex-direction: column;
+  display: flex; flex-direction: column;
   transition: border-color 0.15s;
 }
 .week-col:hover { border-color: var(--text-faint); }
@@ -556,7 +554,7 @@ body { background: var(--bg); min-height: 100vh; }
 .cep-category-badge {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 3px 9px; border-radius: 20px;
-  font-size: 11px; font-weight: 700; color: #fff;
+  font-size: 11px; font-weight: 700;
 }
 .cep-close-btn {
   background: none; border: none; cursor: pointer; color: var(--text-faint);
@@ -626,8 +624,7 @@ body { background: var(--bg); min-height: 100vh; }
 
 /* ── Done Zone ── */
 .done-zone {
-  margin: 0 16px 16px;
-  border-radius: 14px;
+  border-radius: var(--radius);
   border: 2px dashed var(--border);
   background: var(--surface);
   padding: 14px 18px;
@@ -638,6 +635,7 @@ body { background: var(--bg); min-height: 100vh; }
   align-items: center;
   transition: all 0.18s;
   cursor: default;
+  box-shadow: var(--shadow-sm);
 }
 .done-zone.dz-active {
   border-color: var(--accent);

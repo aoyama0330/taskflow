@@ -81,7 +81,7 @@ function ChipEditPopup({ task, anchor, onUpdate, onClose }: {
       onMouseDown={e => e.stopPropagation()}
     >
       <div className="cep-header">
-        <span className="cep-category-badge" style={{ background: meta.color }}>
+        <span className="cep-category-badge" style={{ background: meta.color, color: meta.textColor }}>
           {meta.icon} {meta.label}
         </span>
         <button className="cep-close-btn" onClick={onClose}><X size={14} /></button>
@@ -120,82 +120,6 @@ function ChipEditPopup({ task, anchor, onUpdate, onClose }: {
   );
 }
 
-// ── Mini Calendar (portal, position: fixed) ───────────────────
-function MiniCalendar({ anchor, value, onChange, onClose }: {
-  anchor: { top: number; right: number };
-  value: string | null;
-  onChange: (date: string) => void;
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const todayDate = new Date(); todayDate.setHours(0, 0, 0, 0);
-  const todayStr = toDateStr(todayDate);
-
-  const [viewMonth, setViewMonth] = useState(() => {
-    const base = value ? new Date(value + 'T00:00:00') : todayDate;
-    return new Date(base.getFullYear(), base.getMonth(), 1);
-  });
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
-
-  const year = viewMonth.getFullYear();
-  const mon = viewMonth.getMonth();
-  const daysInMonth = new Date(year, mon + 1, 0).getDate();
-  const firstDow = (new Date(year, mon, 1).getDay() + 6) % 7;
-
-  const ds = (d: number) =>
-    `${year}-${String(mon + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-
-  const cells: (number | null)[] = [
-    ...Array(firstDow).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-
-  return createPortal(
-    <div
-      ref={ref}
-      className="mini-cal-popup"
-      style={{ position: 'fixed', top: anchor.top, right: anchor.right, zIndex: 1100 }}
-      onMouseDown={e => e.stopPropagation()}
-    >
-      <div className="mini-cal-quick">
-        <button className="mini-cal-quick-btn" onMouseDown={e => { e.stopPropagation(); onChange(todayStr); }}>今日</button>
-        <button className="mini-cal-quick-btn" onMouseDown={e => { e.stopPropagation(); onChange(toDateStr(addDays(todayDate, 1))); }}>明日</button>
-        <button className="mini-cal-quick-btn" onMouseDown={e => { e.stopPropagation(); onChange(toDateStr(addDays(todayDate, 2))); }}>明後日</button>
-      </div>
-      <div className="mini-cal-nav">
-        <button className="mini-cal-nav-btn" onMouseDown={e => { e.stopPropagation(); setViewMonth(new Date(year, mon - 1, 1)); }}>
-          <ChevronLeft size={13} />
-        </button>
-        <span className="mini-cal-month">{year}年{mon + 1}月</span>
-        <button className="mini-cal-nav-btn" onMouseDown={e => { e.stopPropagation(); setViewMonth(new Date(year, mon + 1, 1)); }}>
-          <ChevronRight size={13} />
-        </button>
-      </div>
-      <div className="mini-cal-grid">
-        {['月', '火', '水', '木', '金', '土', '日'].map(d => (
-          <div key={d} className="mini-cal-dow">{d}</div>
-        ))}
-        {cells.map((day, i) => day === null
-          ? <div key={`e${i}`} />
-          : <button
-              key={ds(day)}
-              className={`mini-cal-day${ds(day) === todayStr ? ' is-today' : ''}${ds(day) === value ? ' is-selected' : ''}`}
-              onMouseDown={e => { e.stopPropagation(); onChange(ds(day)); }}
-            >{day}</button>
-        )}
-      </div>
-    </div>,
-    document.body
-  );
-}
-
 // ── Task Chip ─────────────────────────────────────────────────
 interface ChipProps {
   task: Task;
@@ -212,22 +136,10 @@ interface ChipProps {
 function TaskChip({ task, onUpdate, showDate = false, isDraggable = false, isDragOver = false,
   onDragStart, onDragOver, onDragEnd, onDrop }: ChipProps) {
   const meta = CATEGORY_META[task.category];
-  const [calAnchor, setCalAnchor] = useState<{ top: number; right: number } | null>(null);
   const [editAnchor, setEditAnchor] = useState<DOMRect | null>(null);
   const chipRef = useRef<HTMLDivElement>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
-
-  const toggleCal = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (calAnchor) { setCalAnchor(null); return; }
-    if (btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
-      setCalAnchor({ top: r.bottom + 4, right: window.innerWidth - r.right });
-    }
-  };
 
   const handleChipClick = () => {
-    if (calAnchor) return;
     if (chipRef.current) setEditAnchor(chipRef.current.getBoundingClientRect());
   };
 
@@ -236,7 +148,7 @@ function TaskChip({ task, onUpdate, showDate = false, isDraggable = false, isDra
       <div
         ref={chipRef}
         className={`cal-task-chip${isDragOver ? ' drag-over' : ''}`}
-        style={{ background: meta.color }}
+        style={{ background: meta.color, color: meta.textColor }}
         draggable={isDraggable}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
@@ -246,22 +158,12 @@ function TaskChip({ task, onUpdate, showDate = false, isDraggable = false, isDra
       >
         <div className="cal-chip-top">
           {isDraggable && <GripVertical size={11} className="drag-handle" />}
-          <span className="cal-chip-icon">{meta.icon}</span>
           <span className="cal-chip-title">{task.title}</span>
         </div>
         <div className="cal-chip-meta">
           <span><Clock size={10} /> {task.estimatedMinutes}分</span>
           {showDate && taskDisplayDate(task) && (
             <span className="cal-chip-date">{taskDisplayDate(task)}</span>
-          )}
-          <button ref={btnRef} className="cal-schedule-btn" onClick={toggleCal} title="日付を変更">📅</button>
-          {calAnchor && (
-            <MiniCalendar
-              anchor={calAnchor}
-              value={task.scheduledDate}
-              onChange={val => { onUpdate({ ...task, scheduledDate: val }); setCalAnchor(null); }}
-              onClose={() => setCalAnchor(null)}
-            />
           )}
         </div>
       </div>
@@ -528,88 +430,6 @@ function WeekView({ tasks, onUpdate, onBulkUpdate, orderedIds }: Props & {
   );
 }
 
-// ── Done Zone ─────────────────────────────────────────────────
-const MILESTONES = [
-  { n: 10, msg: '伝説の一日！', emoji: '🎉' },
-  { n: 5,  msg: '最高の調子！', emoji: '🌟' },
-  { n: 3,  msg: '順調です！',   emoji: '⚡' },
-  { n: 1,  msg: 'いいスタート！', emoji: '👏' },
-];
-const BURST_EMOJIS = ['⭐', '✨', '🎊', '💫', '🌟', '🎯', '🎈'];
-
-function DoneZone({ tasks, onComplete }: { tasks: Task[]; onComplete: (t: Task) => void }) {
-  const todayStr = today();
-  const [isDragOver, setIsDragOver] = useState(false);
-  type Effect = { id: number; kind: 'p' | 'plus'; emoji?: string; x: number };
-  const [effects, setEffects] = useState<Effect[]>([]);
-
-  const completedToday = tasks.filter(t =>
-    t.completed && t.completedAt && t.completedAt.startsWith(todayStr)
-  );
-  const count = completedToday.length;
-  const milestone = MILESTONES.find(m => count >= m.n);
-
-  const burst = () => {
-    const base = Date.now();
-    const particles: Effect[] = Array.from({ length: 7 }, (_, i) => ({
-      id: base + i, kind: 'p',
-      emoji: BURST_EMOJIS[i % BURST_EMOJIS.length],
-      x: (i - 3) * 24,
-    }));
-    const plus: Effect = { id: base + 100, kind: 'plus', x: 0 };
-    setEffects(e => [...e, ...particles, plus]);
-    setTimeout(() => setEffects(e => e.filter(x => x.id < base || x.id > base + 100)), 950);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const taskId = e.dataTransfer.getData('taskId');
-    const task = tasks.find(t => t.id === taskId && !t.completed);
-    if (task) { onComplete(task); burst(); }
-    setIsDragOver(false);
-  };
-
-  return (
-    <div
-      className={`done-zone${isDragOver ? ' dz-active' : ''}`}
-      onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
-      onDragLeave={() => setIsDragOver(false)}
-      onDrop={handleDrop}
-    >
-      {isDragOver ? (
-        <div className="dz-drop-hint">✓ ここへドロップして完了！</div>
-      ) : (
-        <div className="dz-content">
-          <div className="dz-stat">
-            <span className="dz-count">{count}</span>
-            <span className="dz-sub">今日の達成</span>
-          </div>
-          {milestone
-            ? <span className="dz-milestone">{milestone.emoji} {milestone.msg}</span>
-            : <span className="dz-empty-hint">タスクをドロップして完了 →</span>
-          }
-          <div className="dz-dots">
-            {completedToday.slice(0, 28).map(t => (
-              <span
-                key={t.id} className="dz-dot"
-                style={{ background: CATEGORY_META[t.category].color }}
-                title={t.title}
-              />
-            ))}
-            {count > 28 && <span className="dz-dot-more">+{count - 28}</span>}
-          </div>
-        </div>
-      )}
-      <div className="dz-effects" aria-hidden>
-        {effects.map(ef => ef.kind === 'p'
-          ? <span key={ef.id} className="dz-particle" style={{ '--px': `${ef.x}px` } as React.CSSProperties}>{ef.emoji}</span>
-          : <span key={ef.id} className="dz-plus">+1 達成！</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Main CalendarView ─────────────────────────────────────────
 export default function CalendarView({ tasks, onUpdate, onBulkUpdate }: Props) {
   const [view, setView] = useState<'today' | 'week'>('today');
@@ -659,14 +479,6 @@ export default function CalendarView({ tasks, onUpdate, onBulkUpdate }: Props) {
         ? <TodayView tasks={tasks} onUpdate={onUpdate} orderedIds={orderedIds} setOrderedIds={setOrderedIds} />
         : <WeekView tasks={tasks} onUpdate={onUpdate} onBulkUpdate={onBulkUpdate} orderedIds={orderedIds} />
       }
-      <DoneZone
-        tasks={tasks}
-        onComplete={task => onUpdate({
-          ...task,
-          completed: true,
-          completedAt: new Date().toISOString(),
-        })}
-      />
     </div>
   );
 }

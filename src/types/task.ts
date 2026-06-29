@@ -22,10 +22,10 @@ export interface Task {
   tags: string[];
 }
 
-export const CATEGORY_META: Record<TaskCategory, { label: string; color: string; icon: string }> = {
-  quick:       { label: 'クイック',   color: '#4caf50', icon: '⚡' },
-  urgent:      { label: '期限優先',   color: '#f44336', icon: '🔥' },
-  deep:        { label: '集中思考',   color: '#5c6bc0', icon: '🧠' },
-  execution:   { label: '作業実行',   color: '#ff9800', icon: '🔧' },
-  delegatable: { label: '委譲候補',   color: '#ab47bc', icon: '🤝' },
+export const CATEGORY_META: Record<TaskCategory, { label: string; color: string; icon: string; textColor: string }> = {
+  quick:       { label: 'クイック',   color: '#B8E4B8', icon: '⚡', textColor: '#1C5C1C' },
+  urgent:      { label: '期限優先',   color: '#F5B0B8', icon: '🔥', textColor: '#8A2028' },
+  deep:        { label: '集中思考',   color: '#AABCE8', icon: '🧠', textColor: '#1C3080' },
+  execution:   { label: '作業実行',   color: '#F8D090', icon: '🔧', textColor: '#6A4000' },
+  delegatable: { label: '委譲候補',   color: '#D4A8E0', icon: '🤝', textColor: '#501870' },
 };
