@@ -112,7 +112,8 @@ export default function App() {
           <button className={`nav-tab ${view === 'today' ? 'active' : ''}`} onClick={() => setView('today')} style={{ position: 'relative' }}>
             <List size={14} /> カレンダー（日）
             {(() => {
-              const d = new Date().toISOString().split('T')[0];
+              const _d = new Date();
+              const d = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`;
               const n = tasks.filter(t => !t.completed && (t.scheduledDate || t.deadline) && (t.scheduledDate || t.deadline)! <= d).length;
               return n > 0 ? <span className="cal-badge">{n}</span> : null;
             })()}
